@@ -1063,12 +1063,12 @@ The reflection adapter requires the following additional dependency:
 <dependency>
   <groupId>com.squareup.moshi</groupId>
   <artifactId>moshi-kotlin</artifactId>
-  <version>1.15.0</version>
+  <version>1.15.2</version>
 </dependency>
 ```
 
 ```kotlin
-implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
+implementation("com.squareup.moshi:moshi-kotlin:1.15.2")
 ```
 
 Note that the reflection adapter transitively depends on the `kotlin-reflect` library which is a
@@ -1076,7 +1076,7 @@ Note that the reflection adapter transitively depends on the `kotlin-reflect` li
 
 #### Codegen
 
-Moshi’s Kotlin codegen support can be used as an annotation processor (via [kapt][kapt]) or Kotlin SymbolProcessor ([KSP][ksp]).
+Moshi’s Kotlin codegen support can be used as a Kotlin SymbolProcessor ([KSP][ksp]).
 It generates a small and fast adapter for each of your Kotlin classes at compile-time. Enable it by annotating
 each class that you want to encode as JSON:
 
@@ -1103,26 +1103,9 @@ plugins {
 }
 
 dependencies {
-  ksp("com.squareup.moshi:moshi-kotlin-codegen:1.15.0")
+  ksp("com.squareup.moshi:moshi-kotlin-codegen:1.15.2")
 }
 
-```
-</details>
-
-<details>
-    <summary>Kapt</summary>
-
-```xml
-<dependency>
-  <groupId>com.squareup.moshi</groupId>
-  <artifactId>moshi-kotlin-codegen</artifactId>
-  <version>1.15.0</version>
-  <scope>provided</scope>
-</dependency>
-```
-
-```kotlin
-kapt("com.squareup.moshi:moshi-kotlin-codegen:1.15.0")
 ```
 </details>
 
@@ -1146,12 +1129,12 @@ Download [the latest JAR][dl] or depend via Maven:
 <dependency>
   <groupId>com.squareup.moshi</groupId>
   <artifactId>moshi</artifactId>
-  <version>1.15.0</version>
+  <version>1.15.2</version>
 </dependency>
 ```
 or Gradle:
 ```kotlin
-implementation("com.squareup.moshi:moshi:1.15.0")
+implementation("com.squareup.moshi:moshi:1.15.2")
 ```
 
 Snapshots of the development version are available in [Sonatype's `snapshots` repository][snap].
@@ -1190,5 +1173,4 @@ License
  [okhttp]: https://github.com/square/okhttp/
  [gson]: https://github.com/google/gson/
  [javadoc]: https://square.github.io/moshi/1.x/moshi/
- [kapt]: https://kotlinlang.org/docs/reference/kapt.html
  [ksp]: https://github.com/google/ksp

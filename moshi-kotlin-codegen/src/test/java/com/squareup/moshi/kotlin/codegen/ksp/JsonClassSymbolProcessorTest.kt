@@ -16,6 +16,8 @@
 package com.squareup.moshi.kotlin.codegen.ksp
 
 import com.google.common.truth.Truth.assertThat
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.JsonReader
 import com.squareup.moshi.kotlin.codegen.api.Options.OPTION_GENERATED
 import com.squareup.moshi.kotlin.codegen.api.Options.OPTION_GENERATE_PROGUARD_RULES
 import com.tschuchort.compiletesting.JvmCompilationResult
@@ -23,19 +25,35 @@ import com.tschuchort.compiletesting.KotlinCompilation
 import com.tschuchort.compiletesting.SourceFile
 import com.tschuchort.compiletesting.SourceFile.Companion.java
 import com.tschuchort.compiletesting.SourceFile.Companion.kotlin
-import com.tschuchort.compiletesting.kspArgs
-import com.tschuchort.compiletesting.kspIncremental
+import com.tschuchort.compiletesting.configureKsp
+import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.kspSourcesDir
-import com.tschuchort.compiletesting.symbolProcessorProviders
 import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.junit.runners.Parameterized
+import kotlin.reflect.KTypeProjection
+import kotlin.reflect.full.createType
+import kotlin.reflect.full.declaredMemberProperties
+import kotlin.reflect.typeOf
 
 /** Execute kotlinc to confirm that either files are generated or errors are printed. */
-class JsonClassSymbolProcessorTest {
+@RunWith(Parameterized::class)
+class JsonClassSymbolProcessorTest(private val useKSP2: Boolean) {
 
-  @Rule @JvmField
+  companion object {
+    @JvmStatic
+    @Parameterized.Parameters(name = "useKSP2={0}")
+    fun data(): Collection<Array<Any>> = listOf(
+      arrayOf(false),
+      arrayOf(true),
+    )
+  }
+
+  @Rule
+  @JvmField
   val temporaryFolder: TemporaryFolder = TemporaryFolder()
 
   @Test
@@ -385,7 +403,7 @@ class JsonClassSymbolProcessorTest {
           """,
       ),
     ).apply {
-      kspArgs[OPTION_GENERATED] = "javax.annotation.GeneratedBlerg"
+      kspProcessorOptions[OPTION_GENERATED] = "javax.annotation.GeneratedBlerg"
     }.compile()
     assertThat(result.messages).contains(
       "Invalid option value for $OPTION_GENERATED",
@@ -406,7 +424,7 @@ class JsonClassSymbolProcessorTest {
           """,
       ),
     ).apply {
-      kspArgs[OPTION_GENERATE_PROGUARD_RULES] = "false"
+      kspProcessorOptions[OPTION_GENERATE_PROGUARD_RULES] = "false"
     }
     val result = compilation.compile()
     assertThat(result.exitCode).isEqualTo(KotlinCompilation.ExitCode.OK)
@@ -577,13 +595,12 @@ class JsonClassSymbolProcessorTest {
     assertThat(result.exitCode).isEqualTo(KotlinCompilation.ExitCode.OK)
 
     // We're checking here that we only generate one `stringAdapter` that's used for both the
-    // regular string properties as well as the the aliased ones.
-    // TODO loading compiled classes from results not supported in KSP yet
-//    val adapterClass = result.classLoader.loadClass("PersonJsonAdapter").kotlin
-//    assertThat(adapterClass.declaredMemberProperties.map { it.returnType }).containsExactly(
-//      JsonReader.Options::class.createType(),
-//      JsonAdapter::class.parameterizedBy(String::class)
-//    )
+    // regular string properties as well as the aliased ones.
+    val adapterClass = result.classLoader.loadClass("test.PersonJsonAdapter").kotlin
+    assertThat(adapterClass.declaredMemberProperties.map { it.returnType }).containsExactly(
+      JsonReader.Options::class.createType(),
+      JsonAdapter::class.createType(listOf(KTypeProjection.invariant(typeOf<String>()))),
+    )
   }
 
   @Test
@@ -710,7 +727,6 @@ class JsonClassSymbolProcessorTest {
       when (generatedFile.nameWithoutExtension) {
         "moshi-testPackage.Aliases" -> assertThat(generatedFile.readText()).contains(
           """
-          -if class testPackage.Aliases
           -keepnames class testPackage.Aliases
           -if class testPackage.Aliases
           -keep class testPackage.AliasesJsonAdapter {
@@ -721,7 +737,6 @@ class JsonClassSymbolProcessorTest {
 
         "moshi-testPackage.Simple" -> assertThat(generatedFile.readText()).contains(
           """
-          -if class testPackage.Simple
           -keepnames class testPackage.Simple
           -if class testPackage.Simple
           -keep class testPackage.SimpleJsonAdapter {
@@ -732,7 +747,6 @@ class JsonClassSymbolProcessorTest {
 
         "moshi-testPackage.Generic" -> assertThat(generatedFile.readText()).contains(
           """
-          -if class testPackage.Generic
           -keepnames class testPackage.Generic
           -if class testPackage.Generic
           -keep class testPackage.GenericJsonAdapter {
@@ -744,7 +758,6 @@ class JsonClassSymbolProcessorTest {
         "moshi-testPackage.UsingQualifiers" -> {
           assertThat(generatedFile.readText()).contains(
             """
-            -if class testPackage.UsingQualifiers
             -keepnames class testPackage.UsingQualifiers
             -if class testPackage.UsingQualifiers
             -keep class testPackage.UsingQualifiersJsonAdapter {
@@ -756,7 +769,6 @@ class JsonClassSymbolProcessorTest {
 
         "moshi-testPackage.MixedTypes" -> assertThat(generatedFile.readText()).contains(
           """
-          -if class testPackage.MixedTypes
           -keepnames class testPackage.MixedTypes
           -if class testPackage.MixedTypes
           -keep class testPackage.MixedTypesJsonAdapter {
@@ -767,7 +779,6 @@ class JsonClassSymbolProcessorTest {
 
         "moshi-testPackage.DefaultParams" -> assertThat(generatedFile.readText()).contains(
           """
-          -if class testPackage.DefaultParams
           -keepnames class testPackage.DefaultParams
           -if class testPackage.DefaultParams
           -keep class testPackage.DefaultParamsJsonAdapter {
@@ -775,7 +786,6 @@ class JsonClassSymbolProcessorTest {
           }
           -if class testPackage.DefaultParams
           -keepnames class kotlin.jvm.internal.DefaultConstructorMarker
-          -if class testPackage.DefaultParams
           -keepclassmembers class testPackage.DefaultParams {
               public synthetic <init>(java.lang.String,int,kotlin.jvm.internal.DefaultConstructorMarker);
           }
@@ -785,7 +795,6 @@ class JsonClassSymbolProcessorTest {
         "moshi-testPackage.Complex" -> {
           assertThat(generatedFile.readText()).contains(
             """
-            -if class testPackage.Complex
             -keepnames class testPackage.Complex
             -if class testPackage.Complex
             -keep class testPackage.ComplexJsonAdapter {
@@ -793,7 +802,6 @@ class JsonClassSymbolProcessorTest {
             }
             -if class testPackage.Complex
             -keepnames class kotlin.jvm.internal.DefaultConstructorMarker
-            -if class testPackage.Complex
             -keepclassmembers class testPackage.Complex {
                 public synthetic <init>(java.lang.String,java.util.List,java.lang.Object,int,kotlin.jvm.internal.DefaultConstructorMarker);
             }
@@ -803,7 +811,6 @@ class JsonClassSymbolProcessorTest {
 
         "moshi-testPackage.MultipleMasks" -> assertThat(generatedFile.readText()).contains(
           """
-          -if class testPackage.MultipleMasks
           -keepnames class testPackage.MultipleMasks
           -if class testPackage.MultipleMasks
           -keep class testPackage.MultipleMasksJsonAdapter {
@@ -811,7 +818,6 @@ class JsonClassSymbolProcessorTest {
           }
           -if class testPackage.MultipleMasks
           -keepnames class kotlin.jvm.internal.DefaultConstructorMarker
-          -if class testPackage.MultipleMasks
           -keepclassmembers class testPackage.MultipleMasks {
               public synthetic <init>(long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,long,int,int,int,kotlin.jvm.internal.DefaultConstructorMarker);
           }
@@ -821,7 +827,6 @@ class JsonClassSymbolProcessorTest {
         "moshi-testPackage.NestedType.NestedSimple" -> {
           assertThat(generatedFile.readText()).contains(
             """
-            -if class testPackage.NestedType${'$'}NestedSimple
             -keepnames class testPackage.NestedType${'$'}NestedSimple
             -if class testPackage.NestedType${'$'}NestedSimple
             -keep class testPackage.NestedType_NestedSimpleJsonAdapter {
@@ -841,10 +846,16 @@ class JsonClassSymbolProcessorTest {
       .apply {
         workingDir = temporaryFolder.root
         inheritClassPath = true
-        symbolProcessorProviders = listOf(JsonClassSymbolProcessorProvider())
         sources = sourceFiles.asList()
         verbose = false
-        kspIncremental = true // The default now
+        configureKsp(useKsp2 = useKSP2) {
+          symbolProcessorProviders += JsonClassSymbolProcessorProvider()
+          incremental = true // The default now
+          if (!useKSP2) {
+            withCompilation = true // Only necessary for KSP1
+            languageVersion = "1.9"
+          }
+        }
       }
   }
 

@@ -1,4 +1,3 @@
-import com.github.jengelman.gradle.plugins.shadow.transformers.ServiceFileTransformer
 import com.vanniktech.maven.publish.JavadocJar.None
 import com.vanniktech.maven.publish.KotlinJvm
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
@@ -8,53 +7,31 @@ plugins {
   kotlin("jvm")
   id("com.google.devtools.ksp")
   id("com.vanniktech.maven.publish.base")
-  alias(libs.plugins.mavenShadow)
 }
 
 tasks.withType<KotlinCompile>().configureEach {
   compilerOptions {
-    freeCompilerArgs.addAll(
-      "-opt-in=com.squareup.kotlinpoet.metadata.KotlinPoetMetadataPreview",
-      "-opt-in=com.squareup.moshi.kotlin.codegen.api.InternalMoshiCodegenApi",
-    )
+    optIn.add("com.squareup.moshi.kotlin.codegen.api.InternalMoshiCodegenApi")
   }
 }
 
 tasks.compileTestKotlin {
   compilerOptions {
-    freeCompilerArgs.add("-opt-in=org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi")
+    optIn.add("org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi")
   }
 }
 
-// --add-opens for kapt to work. KGP covers this for us but local JVMs in tests do not
-tasks.withType<Test>().configureEach {
-  jvmArgs(
-    "--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
-    "--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
-    "--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED",
-    "--add-opens=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
-    "--add-opens=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED",
-    "--add-opens=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
-    "--add-opens=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
-    "--add-opens=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
-    "--add-opens=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
-    "--add-opens=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
-  )
+tasks.test {
+  // KSP2 needs more memory to run until 1.0.21
+  minHeapSize = "2048m"
+  maxHeapSize = "2048m"
+  // Disable the annoying GradleWorkerMain apps that pop up while running
+  jvmArgs("-Djava.awt.headless=true")
 }
 
-val shade: Configuration = configurations.maybeCreate("compileShaded")
-configurations.getByName("compileOnly").extendsFrom(shade)
 dependencies {
   implementation(project(":moshi"))
-  shade(libs.kotlinxMetadata) {
-    exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
-  }
   api(libs.kotlinpoet)
-  shade(libs.kotlinpoet.metadata) {
-    exclude(group = "org.jetbrains.kotlin")
-    exclude(group = "com.squareup", module = "kotlinpoet")
-    exclude(group = "com.google.guava")
-  }
   implementation(libs.kotlinpoet.ksp)
   implementation(libs.guava)
   implementation(libs.asm)
@@ -76,31 +53,10 @@ dependencies {
   // Copy these again as they're not automatically included since they're shaded
   testImplementation(project(":moshi"))
   testImplementation(kotlin("reflect"))
-  testImplementation(libs.kotlinpoet.metadata)
   testImplementation(libs.kotlinpoet.ksp)
   testImplementation(libs.junit)
   testImplementation(libs.truth)
   testImplementation(libs.kotlinCompileTesting)
-}
-
-val shadowJar =
-  tasks.shadowJar.apply {
-    configure {
-      archiveClassifier.set("")
-      configurations = listOf(shade)
-      relocate("com.squareup.kotlinpoet.metadata", "com.squareup.moshi.kotlinpoet.metadata")
-      relocate(
-        "com.squareup.kotlinpoet.classinspector",
-        "com.squareup.moshi.kotlinpoet.classinspector",
-      )
-      relocate("kotlinx.metadata", "com.squareup.moshi.kotlinx.metadata")
-      transformers.add(ServiceFileTransformer())
-    }
-  }
-
-artifacts {
-  runtimeOnly(shadowJar)
-  archives(shadowJar)
 }
 
 configure<MavenPublishBaseExtension> {

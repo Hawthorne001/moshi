@@ -1,4 +1,5 @@
 import com.diffplug.gradle.spotless.JavaExtension
+import com.google.devtools.ksp.gradle.KspTaskJvm
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import com.vanniktech.maven.publish.SonatypeHost
 import org.jetbrains.dokka.gradle.DokkaTask
@@ -18,7 +19,7 @@ buildscript {
     classpath(kotlin("gradle-plugin", version = kotlinVersion))
     classpath("com.google.devtools.ksp:symbol-processing-gradle-plugin:$kspVersion")
     // https://github.com/melix/japicmp-gradle-plugin/issues/36
-    classpath("com.google.guava:guava:33.1.0-jre")
+    classpath("com.google.guava:guava:33.4.0-jre")
   }
 }
 
@@ -27,6 +28,7 @@ plugins {
   alias(libs.plugins.dokka) apply false
   alias(libs.plugins.spotless)
   alias(libs.plugins.japicmp) apply false
+  alias(libs.plugins.ksp) apply false
 }
 
 allprojects {
@@ -55,7 +57,11 @@ spotless {
   }
   kotlin {
     ktlint(libs.ktlint.get().version).editorConfigOverride(
-      mapOf("ktlint_standard_filename" to "disabled"),
+      mapOf(
+        "ktlint_standard_filename" to "disabled",
+        // Making something an expression body should be a choice around readability.
+        "ktlint_standard_function-expression-body" to "disabled",
+      ),
     )
     target("**/*.kt")
     trimTrailingWhitespace()
@@ -75,7 +81,7 @@ subprojects {
   pluginManager.withPlugin("java") {
     configure<JavaPluginExtension> {
       toolchain {
-        languageVersion.set(JavaLanguageVersion.of(20))
+        languageVersion.set(libs.versions.jdk.map(JavaLanguageVersion::of))
       }
     }
     if (project.name != "records-tests") {
@@ -87,8 +93,9 @@ subprojects {
 
   pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
     tasks.withType<KotlinCompile>().configureEach {
+      val isKsp1Task = this is KspTaskJvm
       compilerOptions {
-        freeCompilerArgs.add("-progressive")
+        progressiveMode.set(!isKsp1Task)
         jvmTarget.set(JvmTarget.fromTarget(libs.versions.jvmTarget.get()))
       }
     }
